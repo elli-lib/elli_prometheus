@@ -37,7 +37,10 @@ handle(Req, _Config) ->
 %% `http_request_duration_microseconds'. Ignore all other events.
 handle_event(request_complete, [Req,StatusCode,_Hs,_B,Timings], _Config) ->
   Method      = elli_request:method(Req),
-  [Handler|_] = elli_request:path(Req),
+  Handler     = case elli_request:path(Req) of
+                  [H|_] -> H;
+                  []    -> ""
+                end,
   Labels      = [Method,Handler,StatusCode],
   prometheus_counter:inc(?TOTAL, Labels),
   prometheus_histogram:observe(?DURATION, Labels, duration(Timings)),
