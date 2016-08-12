@@ -11,8 +11,6 @@
 %% elli_handler callbacks
 -export([handle/2,handle_event/3]).
 
--include_lib("elli/include/elli.hrl").
-
 %% Macros.
 -define(LABELS,   [method,handler,status_code]).
 -define(TOTAL,    http_requests_total).
