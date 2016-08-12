@@ -9,6 +9,6 @@
   {maintainers, ["Eric Bailey"]},
   {licenses,    ["BSD-3"]},
   {links, [
-    {"GitHub", "https://github.com/FrontendMasters/elli_prometheus"}
+    {"GitHub", "https://github.com/elli-lib/elli_prometheus"}
   ]}
 ]}.
