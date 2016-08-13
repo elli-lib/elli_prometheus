@@ -26,6 +26,8 @@
 %% TODO: Describe format.
 %% TODO: Add links to Prometheus and Prometheus.erl docs.
 %% TODO: Make path configurable.
+%% TODO: Make export format configurable.
+%% TODO: Make duration buckets configurable.
 handle(Req, _Config) ->
   case {elli_request:method(Req),elli_request:raw_path(Req)} of
     {'GET',<<"/metrics">>} -> {ok,[],prometheus_text_format:format()};
