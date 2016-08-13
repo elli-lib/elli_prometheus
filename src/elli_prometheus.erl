@@ -15,8 +15,6 @@
 -define(LABELS,   [method,handler,status_code]).
 -define(TOTAL,    http_requests_total).
 -define(DURATION, http_request_duration_microseconds).
--define(DURATION_BUCKETS, [10, 100, 1000, 10000, 100000, 300000, 500000,
-                           750000, 1000000, 1500000, 2000000, 3000000]).
 
 %%%===================================================================
 %%% elli_handler callbacks
@@ -25,13 +23,11 @@
 %% @doc Handle requests to `/metrics' and ignore all others.
 %% TODO: Describe format.
 %% TODO: Add links to Prometheus and Prometheus.erl docs.
-%% TODO: Make path configurable.
-%% TODO: Make export format configurable.
-%% TODO: Make duration buckets configurable.
 handle(Req, _Config) ->
+  Path = elli_prometheus_config:path(),
   case {elli_request:method(Req),elli_request:raw_path(Req)} of
-    {'GET',<<"/metrics">>} -> {ok,[],prometheus_text_format:format()};
-    _                      -> ignore
+    {'GET', Path} -> format_metrics();
+    _             -> ignore
   end.
 
 %% @doc On `elli_startup', register two metrics, a counter `http_requests_total'
@@ -51,7 +47,8 @@ handle_event(request_complete, [Req,StatusCode,_Hs,_B,Timings], _Config) ->
   ok;
 handle_event(elli_startup, _Args, _Config) ->
   prometheus_counter:declare(metric(?TOTAL, ?LABELS, "request count")),
-  prometheus_histogram:declare(metric(?DURATION, ?LABELS, ?DURATION_BUCKETS, "execution time")),
+  DurationBuckets = elli_prometheus_config:duration_buckets(),
+  prometheus_histogram:declare(metric(?DURATION, ?LABELS, DurationBuckets, "execution time")),
   ok;
 handle_event(_Event, _Args, _Config) ->
   ok.
@@ -59,6 +56,10 @@ handle_event(_Event, _Args, _Config) ->
 %%%===================================================================
 %%% Private functions
 %%%===================================================================
+
+format_metrics() ->
+  Format = elli_prometheus_config:format(),
+  {ok,[{"Content-Type", Format:content_type()}], Format:format()}.
 
 duration(Timings) ->
   UserStart = proplists:get_value(user_start, Timings, {0,0,0}),
