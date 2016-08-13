@@ -70,4 +70,4 @@ metric(Name, Labels, Desc) ->
   metric(Name, Labels, [], Desc).
 
 metric(Name, Labels, Buckets, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets, Buckets}].
+  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets,Buckets}].
