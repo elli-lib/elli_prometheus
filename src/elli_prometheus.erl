@@ -23,11 +23,11 @@
 %% @doc Handle requests to `/metrics' and ignore all others.
 %% TODO: Describe format.
 %% TODO: Add links to Prometheus and Prometheus.erl docs.
-%% TODO: Make path configurable.
 handle(Req, _Config) ->
+  Path = elli_prometheus_config:path(),
   case {elli_request:method(Req),elli_request:raw_path(Req)} of
-    {'GET',<<"/metrics">>} -> {ok,[],prometheus_text_format:format()};
-    _                      -> ignore
+    {'GET', Path} -> format_metrics();
+    _             -> ignore
   end.
 
 %% @doc On `elli_startup', register two metrics, a counter `http_requests_total'
@@ -47,7 +47,8 @@ handle_event(request_complete, [Req,StatusCode,_Hs,_B,Timings], _Config) ->
   ok;
 handle_event(elli_startup, _Args, _Config) ->
   prometheus_counter:declare(metric(?TOTAL, ?LABELS, "request count")),
-  prometheus_histogram:declare(metric(?DURATION, ?LABELS, "execution time")),
+  DurationBuckets = elli_prometheus_config:duration_buckets(),
+  prometheus_histogram:declare(metric(?DURATION, ?LABELS, DurationBuckets, "execution time")),
   ok;
 handle_event(_Event, _Args, _Config) ->
   ok.
@@ -56,10 +57,17 @@ handle_event(_Event, _Args, _Config) ->
 %%% Private functions
 %%%===================================================================
 
+format_metrics() ->
+  Format = elli_prometheus_config:format(),
+  {ok,[{"Content-Type", Format:content_type()}], Format:format()}.
+
 duration(Timings) ->
   UserStart = proplists:get_value(user_start, Timings, {0,0,0}),
   UserEnd   = proplists:get_value(user_end, Timings, {0,0,0}),
   timer:now_diff(UserEnd, UserStart).
 
 metric(Name, Labels, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}].
+  metric(Name, Labels, [], Desc).
+
+metric(Name, Labels, Buckets, Desc) ->
+  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets, Buckets}].
