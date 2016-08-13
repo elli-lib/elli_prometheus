@@ -15,6 +15,8 @@
 -define(LABELS,   [method,handler,status_code]).
 -define(TOTAL,    http_requests_total).
 -define(DURATION, http_request_duration_microseconds).
+-define(DURATION_BUCKETS, [10, 100, 1000, 10000, 100000, 300000, 500000,
+                           750000, 1000000, 1500000, 2000000, 3000000]).
 
 %%%===================================================================
 %%% elli_handler callbacks
@@ -47,7 +49,7 @@ handle_event(request_complete, [Req,StatusCode,_Hs,_B,Timings], _Config) ->
   ok;
 handle_event(elli_startup, _Args, _Config) ->
   prometheus_counter:new(metric(?TOTAL, ?LABELS, "request count")),
-  prometheus_histogram:new(metric(?DURATION, ?LABELS, "execution time")),
+  prometheus_histogram:new(metric(?DURATION, ?LABELS, ?DURATION_BUCKETS, "execution time")),
   ok;
 handle_event(_Event, _Args, _Config) ->
   ok.
@@ -62,4 +64,7 @@ duration(Timings) ->
   timer:now_diff(UserEnd, UserStart).
 
 metric(Name, Labels, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}].
+  metric(Name, Labels, [], Desc).
+
+metric(Name, Labels, Buckets, Desc) ->
+  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets, Buckets}].
