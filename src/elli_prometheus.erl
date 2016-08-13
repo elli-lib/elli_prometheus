@@ -12,7 +12,6 @@
 -export([handle/2,handle_event/3]).
 
 %% Macros.
--define(LABELS,   [method,handler,status_code]).
 -define(TOTAL,    http_requests_total).
 -define(DURATION, http_request_duration_microseconds).
 
@@ -36,19 +35,15 @@ handle(Req, _Config) ->
 %% `http_requests_total' and {@link prometheus_histogram:observe/3. observe}
 %% `http_request_duration_microseconds'. Ignore all other events.
 handle_event(request_complete, [Req,StatusCode,_Hs,_B,Timings], _Config) ->
-  Method      = elli_request:method(Req),
-  Handler     = case elli_request:path(Req) of
-                  [H|_] -> H;
-                  []    -> ""
-                end,
-  Labels      = [Method,Handler,StatusCode],
+  Labels = labels(Req, StatusCode),
   prometheus_counter:inc(?TOTAL, Labels),
   prometheus_histogram:observe(?DURATION, Labels, duration(Timings)),
   ok;
 handle_event(elli_startup, _Args, _Config) ->
-  prometheus_counter:declare(metric(?TOTAL, ?LABELS, "request count")),
+  Labels          = elli_prometheus_config:labels(),
   DurationBuckets = elli_prometheus_config:duration_buckets(),
-  prometheus_histogram:declare(metric(?DURATION, ?LABELS, DurationBuckets, "execution time")),
+  prometheus_counter:declare(metric(?TOTAL, Labels, "request count")),
+  prometheus_histogram:declare(metric(?DURATION, Labels, DurationBuckets, "execution time")),
   ok;
 handle_event(_Event, _Args, _Config) ->
   ok.
@@ -70,4 +65,20 @@ metric(Name, Labels, Desc) ->
   metric(Name, Labels, [], Desc).
 
 metric(Name, Labels, Buckets, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets, Buckets}].
+  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets,Buckets}].
+
+labels(Req, StatusCode) ->
+  Labels = elli_prometheus_config:labels(),
+  [label(Label, Req, StatusCode) || Label <- Labels].
+
+label(method, Req, _) ->
+  elli_request:method(Req);
+label(handler, Req, _) ->
+  case elli_request:path(Req) of
+    [H|_] -> H;
+    []    -> ""
+  end;
+label(status_code, _, StatusCode) ->
+  StatusCode;
+label(status_class, _, StatusCode) ->
+  prometheus_http:status_class(StatusCode).
