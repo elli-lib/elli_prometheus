@@ -16,8 +16,6 @@
                          {duration_buckets,?DEFAULT_DURATION_BUCKETS},
                          {labels,?DEFAULT_LABELS}]).
 
-config() ->
-  application:get_env(prometheus, elli_exporter, ?DEFAULT_CONFIG).
 
 path() ->
   Config = config(),
@@ -34,3 +32,5 @@ duration_buckets() ->
 labels() ->
   Config = config(),
   proplists:get_value(labels, Config, ?DEFAULT_LABELS).
+
+config() -> application:get_env(prometheus, elli_exporter, ?DEFAULT_CONFIG).

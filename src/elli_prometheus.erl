@@ -45,8 +45,7 @@ handle_event(elli_startup, _Args, _Config) ->
   prometheus_counter:declare(metric(?TOTAL, Labels, "request count")),
   prometheus_histogram:declare(metric(?DURATION, Labels, DurationBuckets, "execution time")),
   ok;
-handle_event(_Event, _Args, _Config) ->
-  ok.
+handle_event(_Event, _Args, _Config) -> ok.
 
 %%%===================================================================
 %%% Private functions
@@ -61,8 +60,7 @@ duration(Timings) ->
   UserEnd   = proplists:get_value(user_end, Timings, {0,0,0}),
   timer:now_diff(UserEnd, UserStart).
 
-metric(Name, Labels, Desc) ->
-  metric(Name, Labels, [], Desc).
+metric(Name, Labels, Desc) -> metric(Name, Labels, [], Desc).
 
 metric(Name, Labels, Buckets, Desc) ->
   [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets,Buckets}].
@@ -71,14 +69,11 @@ labels(Req, StatusCode) ->
   Labels = elli_prometheus_config:labels(),
   [label(Label, Req, StatusCode) || Label <- Labels].
 
-label(method, Req, _) ->
-  elli_request:method(Req);
+label(method,  Req, _) -> elli_request:method(Req);
 label(handler, Req, _) ->
   case elli_request:path(Req) of
     [H|_] -> H;
     []    -> ""
   end;
-label(status_code, _, StatusCode) ->
-  StatusCode;
-label(status_class, _, StatusCode) ->
-  prometheus_http:status_class(StatusCode).
+label(status_code,  _, StatusCode) -> StatusCode;
+label(status_class, _, StatusCode) -> prometheus_http:status_class(StatusCode).
