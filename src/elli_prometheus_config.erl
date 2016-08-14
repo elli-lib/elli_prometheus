@@ -1,7 +1,10 @@
 -module(elli_prometheus_config).
+-author("Ilya Khaprov").
 
+%% API.
 -export([path/0,format/0,duration_buckets/0,labels/0]).
 
+%% Macros.
 -define(DEFAULT_PATH, <<"/metrics">>).
 -define(DEFAULT_FORMAT, prometheus_text_format).
 -define(DEFAULT_DURATION_BUCKETS, [10,100,1000,10000,100000,300000,500000,
@@ -13,6 +16,9 @@
                          {duration_buckets,?DEFAULT_DURATION_BUCKETS},
                          {labels,?DEFAULT_LABELS}]).
 
+%%%===================================================================
+%%% API
+%%%===================================================================
 
 path() ->
   Config = config(),
@@ -29,5 +35,9 @@ duration_buckets() ->
 labels() ->
   Config = config(),
   proplists:get_value(labels, Config, ?DEFAULT_LABELS).
+
+%%%===================================================================
+%%% Private functions
+%%%===================================================================
 
 config() -> application:get_env(prometheus, elli_exporter, ?DEFAULT_CONFIG).
