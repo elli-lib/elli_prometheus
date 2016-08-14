@@ -10,6 +10,8 @@
 
 -behaviour(elli_handler).
 
+-include_lib("elli/include/elli.hrl").
+
 %% elli_handler callbacks
 -export([handle/2, handle_event/3]).
 
@@ -41,12 +43,12 @@
 %% @doc Handle requests to `/metrics' and ignore all others.
 %% TODO: Describe format.
 %% TODO: Add links to Prometheus and Prometheus.erl docs.
-handle(Req, _Config) ->
-  Path = elli_prometheus_config:path(),
-  case {elli_request:method(Req), elli_request:raw_path(Req)} of
-    {'GET', Path} -> format_metrics(Req);
-    _             -> ignore
-  end.
+handle(#req{method = 'GET', raw_path = RawPath} = Req, _Config) ->
+  case elli_prometheus_config:path() of
+    RawPath -> format_metrics(Req);
+    _       -> ignore
+  end;
+handle(_Req, _Config) -> ignore.
 
 handle_event(request_complete, Args, Config) ->
   handle_full_response(request_complete, Args, Config);
@@ -147,7 +149,7 @@ handle_full_response(Type, [Req, Code, _Hs, _B, {Timings, Sizes}], _Config) ->
   TypedLabels = case Type of
                   request_complete -> ["full" | Labels];
                   chunk_complete -> ["chunks" | Labels] %;
-                  %% _ -> Labels
+                                    %% _ -> Labels
                 end,
   prometheus_counter:inc(?TOTAL, Labels),
 
@@ -249,12 +251,9 @@ labels(Req, StatusCode) ->
   Labels = elli_prometheus_config:labels(),
   [label(Label, Req, StatusCode) || Label <- Labels].
 
-label(method,  Req, _) -> elli_request:method(Req);
-label(handler, Req, _) ->
-  case elli_request:path(Req) of
-    [H|_] -> H;
-    []    -> ""
-  end;
+label(method,  #req{method = Method},      _) -> Method;
+label(handler, #req{path = [Handler | _]}, _) -> Handler;
+label(handler, #req{path = []},            _) -> <<>>;
 label(status_code,  _, StatusCode) -> StatusCode;
 label(status_class, _, StatusCode) -> prometheus_http:status_class(StatusCode).
 
