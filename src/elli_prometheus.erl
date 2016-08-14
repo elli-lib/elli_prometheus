@@ -40,10 +40,12 @@ handle_event(request_complete, [Req,StatusCode,_Hs,_B,Timings], _Config) ->
   prometheus_histogram:observe(?DURATION, Labels, duration(Timings)),
   ok;
 handle_event(elli_startup, _Args, _Config) ->
-  Labels          = elli_prometheus_config:labels(),
-  DurationBuckets = elli_prometheus_config:duration_buckets(),
-  prometheus_counter:declare(metric(?TOTAL, Labels, "request count")),
-  prometheus_histogram:declare(metric(?DURATION, Labels, DurationBuckets, "execution time")),
+  Labels        = elli_prometheus_config:labels(),
+  Buckets       = elli_prometheus_config:duration_buckets(),
+  RequestCount  = metric(?TOTAL, Labels, "request count"),
+  ExecutionTime = metric(?DURATION, Labels, Buckets, "execution time"),
+  prometheus_counter:declare(RequestCount),
+  prometheus_histogram:declare(ExecutionTime),
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
