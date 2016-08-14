@@ -20,24 +20,18 @@
 %%% API
 %%%===================================================================
 
-path() ->
-  Config = config(),
-  proplists:get_value(path, Config, ?DEFAULT_PATH).
+path() -> get_value(path, ?DEFAULT_PATH).
 
-format() ->
-  Config = config(),
-  proplists:get_value(format, Config, ?DEFAULT_FORMAT).
+format() -> get_value(format, ?DEFAULT_FORMAT).
 
-duration_buckets() ->
-  Config = config(),
-  proplists:get_value(duration_buckets, Config, ?DEFAULT_DURATION_BUCKETS).
+duration_buckets() -> get_value(duration_buckets, ?DEFAULT_DURATION_BUCKETS).
 
-labels() ->
-  Config = config(),
-  proplists:get_value(labels, Config, ?DEFAULT_LABELS).
+labels() -> get_value(labels, ?DEFAULT_LABELS).
 
 %%%===================================================================
 %%% Private functions
 %%%===================================================================
+
+get_value(Key, Default) -> proplists:get_value(Key, config(), Default).
 
 config() -> application:get_env(prometheus, elli_exporter, ?DEFAULT_CONFIG).
