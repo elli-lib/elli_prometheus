@@ -53,7 +53,7 @@ handle_event(_Event, _Args, _Config) -> ok.
 
 format_metrics() ->
   Format = elli_prometheus_config:format(),
-  {ok,[{"Content-Type", Format:content_type()}], Format:format()}.
+  {ok,[{<<"Content-Type">>,Format:content_type()}],Format:format()}.
 
 duration(Timings) ->
   UserStart = proplists:get_value(user_start, Timings, {0,0,0}),
@@ -63,7 +63,7 @@ duration(Timings) ->
 metric(Name, Labels, Desc) -> metric(Name, Labels, [], Desc).
 
 metric(Name, Labels, Buckets, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc}, {buckets,Buckets}].
+  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc},{buckets,Buckets}].
 
 labels(Req, StatusCode) ->
   Labels = elli_prometheus_config:labels(),

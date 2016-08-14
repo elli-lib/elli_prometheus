@@ -1,9 +1,6 @@
 -module(elli_prometheus_config).
 
--export([path/0,
-         format/0,
-         duration_buckets/0,
-         labels/0]).
+-export([path/0,format/0,duration_buckets/0,labels/0]).
 
 -define(DEFAULT_PATH, <<"/metrics">>).
 -define(DEFAULT_FORMAT, prometheus_text_format).
