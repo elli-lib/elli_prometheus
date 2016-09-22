@@ -2,12 +2,15 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(README, "README.md").
+
 elli_test_() ->
   {setup,
    fun setup/0, fun teardown/1,
    [{foreach,
      fun init_stats/0, fun clear_stats/1,
-     [?_test(hello_world())]}]}.
+     [?_test(hello_world()),
+      ?_test(sendfile())]}]}.
 
 setup() ->
   application:start(crypto),
@@ -16,10 +19,6 @@ setup() ->
   inets:start(),
   prometheus:start(),
 
-  %% force elli_middleware module loading
-  %% otherwise elli won't recognize it as a callback
-  %% when erlang runs in interactive mode.
-  elli_middleware:module_info(),
   Config = [
             {mods, [
                     {elli_prometheus, []},
@@ -37,10 +36,10 @@ teardown(Pids) ->
   [elli:stop(P) || P <- Pids].
 
 init_stats() ->
-  ets:new(elli_stat_table, [set, named_table, public]).
+  elli_prometheus:handle_event(elli_startup, false, false).
 
 clear_stats(_) ->
-  ets:delete(elli_stat_table).
+  prometheus_registry:clear().
 
 histogram_count_sum(Name, Labels) ->
   {Buckets, Sum} = prometheus_histogram:value(Name, Labels),
@@ -83,6 +82,46 @@ hello_world() ->
                                       ["full" | Labels])),
   ?assertMatch({1, 12}, summary_value(http_response_body_size_bytes,
                                       ["full" | Labels])).
+
+sendfile() ->
+  {ok, Response} = httpc:request("http://localhost:3001/sendfile"),
+  F              = ?README,
+  {ok, Expected} = file:read_file(F),
+  ?assertMatch(200, status(Response)),
+  ?assertEqual([{"connection", "Keep-Alive"},
+                {"content-length", integer_to_list(size(Expected))}],
+               headers(Response)),
+  ?assertEqual(binary_to_list(Expected), body(Response)),
+
+  Labels = ['GET', <<"sendfile">>, "success"],
+
+  ?assertMatch(1, counter_value(http_requests_total, Labels)),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_duration_microseconds,
+                                               ["full" | Labels])),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_headers_microseconds,
+                                               Labels)),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_body_microseconds,
+                                               Labels)),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_user_microseconds,
+                                               Labels)),
+
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_response_send_microseconds,
+                                               ["full" | Labels])),
+
+  ExpectedBodySize = size(Expected),
+  ExpectedHeadersSize = 65,
+  ExpectedSize = ExpectedBodySize + ExpectedHeadersSize,
+  ?assertMatch({1, ExpectedSize}, summary_value(http_response_size_bytes,
+                                                ["full" | Labels])),
+  ?assertMatch({1, ExpectedHeadersSize}, summary_value(http_response_headers_size_bytes,
+                                                       ["full" | Labels])),
+  ?assertMatch({1, ExpectedBodySize}, summary_value(http_response_body_size_bytes,
+                                                    ["full" | Labels])).
 
 %%% Helpers
 

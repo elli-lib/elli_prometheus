@@ -144,9 +144,15 @@ size(Sizes, response) ->
 size(Sizes, response_headers) ->
   proplists:get_value(resp_headers, Sizes);
 size(Sizes, response_body) ->
-  proplists:get_value(chunks, Sizes, false) orelse
-    proplists:get_value(file, Sizes, false) orelse
-    proplists:get_value(resp_body, Sizes).
+  case proplists:get_value(chunks, Sizes) of
+    undefined ->
+      case proplists:get_value(file, Sizes) of
+        undefined ->
+          proplists:get_value(resp_body, Sizes);
+        FileSize -> FileSize
+      end;
+    ChunksSize -> ChunksSize
+  end.
 
 metric(Name, Labels, Desc) -> metric(Name, Labels, [], Desc).
 
