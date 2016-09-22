@@ -43,11 +43,6 @@ handle(Req, _Config) ->
     _             -> ignore
   end.
 
-%% @doc On `elli_startup', register two metrics, a counter `http_requests_total'
-%% and a histogram `http_request_duration_microseconds'. Then, on
-%% `request_complete', {@link prometheus_counter:inc/2. increment}
-%% `http_requests_total' and {@link prometheus_histogram:observe/3. observe}
-%% `http_request_duration_microseconds'. Ignore all other events.
 handle_event(request_complete, Args, Config) ->
   handle_full_response(request_complete, Args, Config);
 handle_event(chunk_complete, Args, Config) ->
