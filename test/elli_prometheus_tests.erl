@@ -10,7 +10,8 @@ elli_test_() ->
    [{foreach,
      fun init_stats/0, fun clear_stats/1,
      [?_test(hello_world()),
-      ?_test(sendfile())]}]}.
+      ?_test(sendfile()),
+      ?_test(chunked())]}]}.
 
 setup() ->
   application:start(crypto),
@@ -122,6 +123,49 @@ sendfile() ->
                                                        ["full" | Labels])),
   ?assertMatch({1, ExpectedBodySize}, summary_value(http_response_body_size_bytes,
                                                     ["full" | Labels])).
+
+chunked() ->
+  Expected = "chunk10chunk9chunk8chunk7chunk6chunk5chunk4chunk3chunk2chunk1",
+
+  {ok, Response} = httpc:request("http://localhost:3001/chunked"),
+
+  ?assertMatch(200, status(Response)),
+  ?assertEqual([{"connection", "Keep-Alive"},
+                %% httpc adds a content-length, even though elli
+                %% does not send any for chunked transfers
+                {"content-length", integer_to_list(length(Expected))},
+                {"content-type", "text/event-stream"}], headers(Response)),
+  ?assertMatch(Expected, body(Response)),
+
+  Labels = ['GET', <<"chunked">>, "success"],
+
+  ?assertMatch(1, counter_value(http_requests_total, Labels)),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_duration_microseconds,
+                                               ["chunks" | Labels])),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_headers_microseconds,
+                                               Labels)),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_body_microseconds,
+                                               Labels)),
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_request_user_microseconds,
+                                               Labels)),
+
+  ?assertMatch({1, S} when S > 0,
+                           histogram_count_sum(http_response_send_microseconds,
+                                               ["chunks" | Labels])),
+
+  ExpectedBodySize = 111, %% size(Expected) + encoding overhead
+  ExpectedHeadersSize = 104,
+  ExpectedSize = ExpectedBodySize + ExpectedHeadersSize,
+  ?assertMatch({1, ExpectedSize}, summary_value(http_response_size_bytes,
+                                                ["chunks" | Labels])),
+  ?assertMatch({1, ExpectedHeadersSize}, summary_value(http_response_headers_size_bytes,
+                                                       ["chunks" | Labels])),
+  ?assertMatch({1, ExpectedBodySize}, summary_value(http_response_body_size_bytes,
+                                                    ["chunks" | Labels])).
 
 %%% Helpers
 

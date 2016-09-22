@@ -44,7 +44,7 @@ handle(Req, _Config) ->
 %% `http_request_duration_microseconds'. Ignore all other events.
 handle_event(request_complete, Args, Config) ->
   handle_full_response(request_complete, Args, Config);
-handle_event(chunks_complete, Args, Config) ->
+handle_event(chunk_complete, Args, Config) ->
   handle_full_response(chunk_complete, Args, Config);
 handle_event(elli_startup, _Args, _Config) ->
   Labels        = elli_prometheus_config:labels(),
