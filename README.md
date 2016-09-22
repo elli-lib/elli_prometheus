@@ -1,5 +1,6 @@
 elli_prometheus
 =====
+[![Build Status](https://travis-ci.org/elli-lib/elli_prometheus.svg?branch=master)](https://travis-ci.org/elli-lib/elli_prometheus)
 
 [Elli][] middleware for collecting stats via [Prometheus][].
 
