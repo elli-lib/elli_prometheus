@@ -75,12 +75,12 @@ For failed requests:
   Reasons:
   - `too_many_headers`;
   - `body_size`.
-- `http_client_closed_errors_total{request_part}` - Total count of `client_closed` errors.
+- `http_client_closed_total{request_part}` - Total count of `client_closed` errors.
    Parts:
    - `receiving_headers`;
    - `receiving_body`;
    - `before_response`.
-- `http_client_timeout_errors_total{request_part}` Total count of `client_timeout` errors.
+- `http_client_timeout_total{request_part}` Total count of `client_timeout` errors.
   Parts:
    - `receiving_headers`;
    - `receiving_body`.

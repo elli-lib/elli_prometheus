@@ -11,7 +11,10 @@ elli_test_() ->
      fun init_stats/0, fun clear_stats/1,
      [?_test(hello_world()),
       ?_test(sendfile()),
-      ?_test(chunked())]}]}.
+      ?_test(chunked()),
+      ?_test(bad_request_line()),
+      ?_test(too_many_headers()),
+      ?_test(way_too_big_body())]}]}.
 
 setup() ->
   application:start(crypto),
@@ -166,6 +169,41 @@ chunked() ->
                                                        ["chunks" | Labels])),
   ?assertMatch({1, ExpectedBodySize}, summary_value(http_response_body_size_bytes,
                                                     ["chunks" | Labels])).
+
+bad_request_line() ->
+  {ok, Socket} = gen_tcp:connect("127.0.0.1", 3001,
+                                 [{active, false}, binary]),
+
+  Req = <<"FOO BAR /hello HTTP/1.1\r\n">>,
+  gen_tcp:send(Socket, <<Req/binary, Req/binary>>),
+  ?assertMatch({ok, <<"HTTP/1.1 400 Bad Request\r\n"
+                      "Content-Length: 11\r\n\r\n">>},
+               gen_tcp:recv(Socket, 0)),
+
+  Labels = [request_parse_error],
+
+  ?assertMatch(1, counter_value(http_requests_failed_total, Labels)).
+
+too_many_headers() ->
+    Headers = lists:duplicate(100, {"X-Foo", "Bar"}),
+    {ok, Response} = httpc:request(get, {"http://localhost:3001/foo", Headers},
+                                   [], []),
+  ?assertMatch(400, status(Response)),
+
+  ?assertMatch(1, counter_value(http_bad_requests_total, [too_many_headers])),
+  ?assertMatch(1, counter_value(http_requests_failed_total, [bad_request])).
+
+way_too_big_body() ->
+    Body = binary:copy(<<"x">>, (1024 * 2000) + 1),
+    ?assertMatch({error, socket_closed_remotely},
+                 httpc:request(post,
+                               {"http://localhost:3001/foo", [], [], Body},
+                               [], [])),
+
+
+  ?assertMatch(1, counter_value(http_bad_requests_total, [body_size])),
+  ?assertMatch(1, counter_value(http_requests_failed_total, [bad_request])).
+
 
 %%% Helpers
 

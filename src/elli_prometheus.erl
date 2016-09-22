@@ -11,7 +11,7 @@
 %% elli_handler callbacks
 -export([handle/2,handle_event/3]).
 
-%% Macros.
+%% Metrics for successful requests
 -define(TOTAL, http_requests_total).
 -define(REQUEST_DURATION, http_request_duration_microseconds).
 -define(REQUEST_HEADERS_DURATION, http_request_headers_microseconds).
@@ -22,6 +22,12 @@
 -define(RESPONSE_SIZE, http_response_size_bytes).
 -define(RESPONSE_HEADERS_SIZE, http_response_headers_size_bytes).
 -define(RESPONSE_BODY_SIZE, http_response_body_size_bytes).
+
+%% Metrics for failed requests
+-define(FAILED_TOTAL, http_requests_failed_total).
+-define(BAD_REQUEST_TOTAL, http_bad_requests_total).
+-define(CLIENT_CLOSED_TOTAL, http_client_closed_total).
+-define(CLIENT_TIMEOUT_TOTAL, http_client_timeout_total).
 
 %%%===================================================================
 %%% elli_handler callbacks
@@ -46,6 +52,22 @@ handle_event(request_complete, Args, Config) ->
   handle_full_response(request_complete, Args, Config);
 handle_event(chunk_complete, Args, Config) ->
   handle_full_response(chunk_complete, Args, Config);
+
+handle_event(request_closed, _, _) ->
+  count_failed_request(request_closed);
+handle_event(request_timeout, _, _) ->
+  count_failed_request(request_timeout);
+handle_event(request_parse_error, _, _) ->
+  count_failed_request(request_parse_error);
+handle_event(client_closed, [RequestPart], _) ->
+  prometheus_counter:inc(?CLIENT_CLOSED_TOTAL, [RequestPart]),
+  count_failed_request(client_closed);
+handle_event(client_timeout, [RequestPart], _) ->
+  prometheus_counter:inc(?CLIENT_TIMEOUT_TOTAL, [RequestPart]),
+  count_failed_request(client_timeout);
+handle_event(bad_request, [{Reason, _}], _) ->
+  prometheus_counter:inc(?BAD_REQUEST_TOTAL, [Reason]),
+  count_failed_request(bad_request);
 handle_event(elli_startup, _Args, _Config) ->
   Labels        = elli_prometheus_config:labels(),
   Buckets       = elli_prometheus_config:duration_buckets(),
@@ -83,6 +105,24 @@ handle_event(elli_startup, _Args, _Config) ->
   prometheus_summary:declare(ResponseSize),
   prometheus_summary:declare(ResponseHeaders),
   prometheus_summary:declare(ResponseBody),
+
+  FailedRequestCount = metric(?FAILED_TOTAL,
+                              [reason], [],
+                              "failed total count."),
+  BadRequestTotal = metric(?BAD_REQUEST_TOTAL,
+                           [reason], [],
+                           "\"bad_request\" errors count"),
+  ClientClosedTotal = metric(?CLIENT_CLOSED_TOTAL,
+                             [request_part], [],
+                             "\"client_closed\" errors count"),
+  ClientTimeoutTotal = metric(?CLIENT_TIMEOUT_TOTAL,
+                              [request_part], [],
+                              "\"client_timeout\" errors count"),
+  prometheus_counter:declare(FailedRequestCount),
+  prometheus_counter:declare(BadRequestTotal),
+  prometheus_counter:declare(ClientClosedTotal),
+  prometheus_counter:declare(ClientTimeoutTotal),
+
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
@@ -117,6 +157,9 @@ handle_full_response(Type, [Req,Code,_Hs,_B,{Timings, Sizes}], _Config) ->
   prometheus_summary:observe(?RESPONSE_BODY_SIZE, TypedLabels,
                              size(Sizes, response_body)),
   ok.
+
+count_failed_request(Reason) ->
+  prometheus_counter:inc(?FAILED_TOTAL, [Reason]).
 
 format_metrics() ->
   Format = elli_prometheus_config:format(),
