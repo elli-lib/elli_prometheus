@@ -84,6 +84,18 @@ For failed requests:
   Parts:
    - `receiving_headers`;
    - `receiving_body`.
+   
+Exporter metrics:
+
+Labels: `registry`, `content_type`.
+
+* `telemetry_scrape_duration_seconds`<br />
+Type: summary.<br />
+Scrape duration.
+
+* `telemetry_scrape_size_bytes`<br />
+Type: summary.<br />
+Scrape size, uncompressed.
 
 Dependencies
 -----

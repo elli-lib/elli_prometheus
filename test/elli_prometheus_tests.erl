@@ -4,12 +4,52 @@
 
 -define(README, "README.md").
 
+-define(EMPTY_SCRAPE_TEXT,
+        "# TYPE http_client_closed_total counter
+# HELP http_client_closed_total HTTP request \"client_closed\" errors count
+# TYPE http_requests_failed_total counter
+        # HELP http_requests_failed_total HTTP request failed total count.
+# TYPE http_client_timeout_total counter
+# HELP http_client_timeout_total HTTP request \"client_timeout\" errors count
+# TYPE http_bad_requests_total counter
+# HELP http_bad_requests_total HTTP request \"bad_request\" errors count
+# TYPE http_requests_total counter
+# HELP http_requests_total HTTP request request count
+# TYPE http_request_duration_microseconds histogram
+# HELP http_request_duration_microseconds HTTP request  latencies in microseconds
+# TYPE http_request_headers_microseconds histogram
+# HELP http_request_headers_microseconds HTTP request time spent receiving and parsing headers
+# TYPE http_request_user_microseconds histogram
+# HELP http_request_user_microseconds HTTP request time spent in user callback
+# TYPE http_response_send_microseconds histogram
+# HELP http_response_send_microseconds HTTP request time spent sending reply
+# TYPE http_request_body_microseconds histogram
+# HELP http_request_body_microseconds HTTP request time spent receiving and parsing body
+# TYPE http_response_body_size_bytes summary
+# HELP http_response_body_size_bytes HTTP request response body size
+# TYPE telemetry_scrape_duration_seconds summary
+# HELP telemetry_scrape_duration_seconds Scrape duration
+# TYPE http_response_size_bytes summary
+# HELP http_response_size_bytes HTTP request total response size
+# TYPE telemetry_scrape_size_bytes summary
+# HELP telemetry_scrape_size_bytes Scrape size, uncompressed
+# TYPE http_response_headers_size_bytes summary
+# HELP http_response_headers_size_bytes HTTP request response headers size
+
+").
+
+-define(EMPTY_SCRAPE_SIZE, 1762).
+
+normalize_text_scrape(Scrape) ->
+  lists:sort(lists:map(fun string:strip/1, string:tokens(Scrape, "\n"))).
+
 elli_test_() ->
   {setup,
    fun setup/0, fun teardown/1,
    [{foreach,
      fun init_stats/0, fun clear_stats/1,
      [?_test(hello_world()),
+      ?_test(scrape()),
       ?_test(sendfile()),
       ?_test(chunked()),
       ?_test(bad_request_line()),
@@ -86,6 +126,30 @@ hello_world() ->
                                       ["full" | Labels])),
   ?assertMatch({1, 12}, summary_value(http_response_body_size_bytes,
                                       ["full" | Labels])).
+
+scrape() ->
+  {ok, Response} = httpc:request("http://localhost:3001/metrics"),
+  ?assertMatch(200, status(Response)),
+  ExpectedCL = integer_to_list(?EMPTY_SCRAPE_SIZE),
+  CT = prometheus_text_format:content_type(),
+  ExpectedCT = binary_to_list(CT),
+  ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-length", ExpectedCL},
+                {"content-type", ExpectedCT}], headers(Response)),
+  ?assertEqual(normalize_text_scrape(?EMPTY_SCRAPE_TEXT),
+               normalize_text_scrape(body(Response))),
+
+  ExpectedSCount = 1,
+
+  ?assertMatch({ExpectedSCount, ?EMPTY_SCRAPE_SIZE},
+               summary_value(telemetry_scrape_size_bytes,
+                             [default, CT])),
+
+  {SCount, SDuration} = summary_value(telemetry_scrape_duration_seconds,
+                                      [default, CT]),
+
+  ?assertMatch(ExpectedSCount, SCount),
+  ?assertEqual(true, SDuration > 0 andalso SDuration < 0.01).
 
 sendfile() ->
   {ok, Response} = httpc:request("http://localhost:3001/sendfile"),
@@ -185,20 +249,20 @@ bad_request_line() ->
   ?assertMatch(1, counter_value(http_requests_failed_total, Labels)).
 
 too_many_headers() ->
-    Headers = lists:duplicate(100, {"X-Foo", "Bar"}),
-    {ok, Response} = httpc:request(get, {"http://localhost:3001/foo", Headers},
-                                   [], []),
+  Headers = lists:duplicate(100, {"X-Foo", "Bar"}),
+  {ok, Response} = httpc:request(get, {"http://localhost:3001/foo", Headers},
+                                 [], []),
   ?assertMatch(400, status(Response)),
 
   ?assertMatch(1, counter_value(http_bad_requests_total, [too_many_headers])),
   ?assertMatch(1, counter_value(http_requests_failed_total, [bad_request])).
 
 way_too_big_body() ->
-    Body = binary:copy(<<"x">>, (1024 * 2000) + 1),
-    ?assertMatch({error, socket_closed_remotely},
-                 httpc:request(post,
-                               {"http://localhost:3001/foo", [], [], Body},
-                               [], [])),
+  Body = binary:copy(<<"x">>, (1024 * 2000) + 1),
+  ?assertMatch({error, socket_closed_remotely},
+               httpc:request(post,
+                             {"http://localhost:3001/foo", [], [], Body},
+                             [], [])),
 
 
   ?assertMatch(1, counter_value(http_bad_requests_total, [body_size])),

@@ -120,6 +120,17 @@ handle_event(elli_startup, _Args, _Config) ->
   prometheus_counter:declare(ClientClosedTotal),
   prometheus_counter:declare(ClientTimeoutTotal),
 
+  Registry = default,
+
+  prometheus_summary:declare([{name, telemetry_scrape_duration_seconds},
+                              {help, "Scrape duration"},
+                              {labels, ["registry", "content_type"]},
+                              {registry, Registry}]),
+  prometheus_summary:declare([{name, telemetry_scrape_size_bytes},
+                              {help, "Scrape size, uncompressed"},
+                              {labels, ["registry", "content_type"]},
+                              {registry, Registry}]),
+
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
@@ -159,8 +170,21 @@ count_failed_request(Reason) ->
   prometheus_counter:inc(?FAILED_TOTAL, [Reason]).
 
 format_metrics() ->
+  Registry = default,
   Format = elli_prometheus_config:format(),
-  {ok,[{<<"Content-Type">>,Format:content_type()}],Format:format()}.
+  ContentType = Format:content_type(),
+
+  Scrape = prometheus_summary:observe_duration(
+             Registry,
+             telemetry_scrape_duration_seconds,
+             [Registry, ContentType],
+             fun () -> Format:format(Registry) end),
+  prometheus_summary:observe(Registry,
+                             telemetry_scrape_size_bytes,
+                             [Registry, ContentType],
+                             iolist_size(Scrape)),
+
+  {ok, [{<<"Content-Type">>, ContentType}], Scrape}.
 
 duration(Timings, request) ->
   duration(request_start, request_end, Timings);
