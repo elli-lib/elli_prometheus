@@ -241,7 +241,7 @@ bad_request_line() ->
   Req = <<"FOO BAR /hello HTTP/1.1\r\n">>,
   gen_tcp:send(Socket, <<Req/binary, Req/binary>>),
   ?assertMatch({ok, <<"HTTP/1.1 400 Bad Request\r\n"
-                      "Content-Length: 11\r\n\r\n">>},
+                      "Content-Length: 11\r\n\r\nBad Request">>},
                gen_tcp:recv(Socket, 0)),
 
   Labels = [request_parse_error],
