@@ -41,7 +41,7 @@
 handle(Req, _Config) ->
   Path = elli_prometheus_config:path(),
   case {elli_request:method(Req),elli_request:raw_path(Req)} of
-    {'GET', Path} -> format_metrics();
+    {'GET', Path} -> format_metrics(Req);
     _             -> ignore
   end.
 
@@ -169,22 +169,37 @@ handle_full_response(Type, [Req,Code,_Hs,_B,{Timings, Sizes}], _Config) ->
 count_failed_request(Reason) ->
   prometheus_counter:inc(?FAILED_TOTAL, [Reason]).
 
-format_metrics() ->
+format_metrics(Req) ->
   Registry = default,
-  Format = elli_prometheus_config:format(),
-  ContentType = Format:content_type(),
-
-  Scrape = prometheus_summary:observe_duration(
-             Registry,
-             telemetry_scrape_duration_seconds,
-             [Registry, ContentType],
-             fun () -> Format:format(Registry) end),
-  prometheus_summary:observe(Registry,
-                             telemetry_scrape_size_bytes,
+  case negotiate(Req) of
+    undefined ->
+      throw({406, [], <<>>});
+    
+    Format ->
+      ContentType = Format:content_type(),
+      
+      Scrape = prometheus_summary:observe_duration(
+                 Registry,
+                 telemetry_scrape_duration_seconds,
+                 [Registry, ContentType],
+                 fun () -> Format:format(Registry) end),
+      prometheus_summary:observe(Registry,
+                                 telemetry_scrape_size_bytes,
                              [Registry, ContentType],
-                             iolist_size(Scrape)),
+                                 iolist_size(Scrape)),
+      
+      {ok, [{<<"Content-Type">>, ContentType}], Scrape}
+  end.
 
-  {ok, [{<<"Content-Type">>, ContentType}], Scrape}.
+negotiate(Req) ->
+  case elli_prometheus_config:format() of
+    auto ->
+      Accept = elli_request:get_header(<<"Accept">>, Req),
+      Alternatives = elli_prometheus_config:allowed_formats(),
+      accept_header:negotiate(Accept, Alternatives);
+    undefined -> undefined;
+    Format0 -> Format0
+  end.
 
 duration(Timings, request) ->
   duration(request_start, request_end, Timings);
