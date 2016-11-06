@@ -194,7 +194,7 @@ format_metrics(Req) ->
 negotiate(Req) ->
   case elli_prometheus_config:format() of
     auto ->
-      Accept = elli_request:get_header(<<"Accept">>, Req),
+      Accept = elli_request:get_header(<<"Accept">>, Req, "text/plain"),
       Alternatives = elli_prometheus_config:allowed_formats(),
       accept_header:negotiate(Accept, Alternatives);
     undefined -> undefined;
