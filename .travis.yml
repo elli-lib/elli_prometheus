@@ -11,4 +11,4 @@ cache:
 otp_release:
 - 19.0
 - 18.0
-script: "./rebar3 eunit"
+script: rebar3 as test do xref, dialyzer, eunit
