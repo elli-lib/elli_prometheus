@@ -146,8 +146,8 @@ handle_full_response(Type, [Req, Code, _Hs, _B, {Timings, Sizes}], _Config) ->
   Labels = labels(Req, Code),
   TypedLabels = case Type of
                   request_complete -> ["full" | Labels];
-                  chunk_complete -> ["chunks" | Labels];
-                  _ -> Labels
+                  chunk_complete -> ["chunks" | Labels] %;
+                  %% _ -> Labels
                 end,
   prometheus_counter:inc(?TOTAL, Labels),
 
