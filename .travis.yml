@@ -10,5 +10,7 @@ cache:
   - $HOME/.cache/rebar3/
 otp_release:
 - 19.0
-- 18.0
-script: rebar3 as test do xref, dialyzer, eunit && rebar3 coveralls send
+# - 18.0
+script:
+- rebar3 as test do xref, dialyzer, eunit
+- DEBUG=1 rebar3 coveralls send
