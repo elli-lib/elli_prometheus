@@ -111,7 +111,7 @@ and `{prometheus, "3.1.0"}`.
 [hex package]: https://hex.pm/packages/elli_prometheus
 [erlang badge]: https://img.shields.io/badge/erlang-%E2%89%A518.0-red.svg
 [erlang downloads]: http://www.erlang.org/downloads
-[build badge]: https://travis-ci.org/elli-lib/elli_prometheus.svg?branch=master
+[build badge]: https://travis-ci.org/elli-lib/elli_prometheus.svg?branch=develop
 [travis link]: https://travis-ci.org/elli-lib/elli_prometheus
 [docs badge]: https://img.shields.io/badge/docs-edown-green.svg
 [docs]: doc/README.md
