@@ -11,7 +11,7 @@
 -behaviour(elli_handler).
 
 %% elli_handler callbacks
--export([handle/2,handle_event/3]).
+-export([handle/2, handle_event/3]).
 
 %% Metrics for successful requests
 -define(TOTAL, http_requests_total).
@@ -31,6 +31,9 @@
 -define(CLIENT_CLOSED_TOTAL, http_client_closed_total).
 -define(CLIENT_TIMEOUT_TOTAL, http_client_timeout_total).
 
+-define(SCRAPE_DURATION, telemetry_scrape_duration_seconds).
+-define(SCRAPE_SIZE, telemetry_scrape_size_bytes).
+
 %%%===================================================================
 %%% elli_handler callbacks
 %%%===================================================================
@@ -40,7 +43,7 @@
 %% TODO: Add links to Prometheus and Prometheus.erl docs.
 handle(Req, _Config) ->
   Path = elli_prometheus_config:path(),
-  case {elli_request:method(Req),elli_request:raw_path(Req)} of
+  case {elli_request:method(Req), elli_request:raw_path(Req)} of
     {'GET', Path} -> format_metrics(Req);
     _             -> ignore
   end.
@@ -122,15 +125,16 @@ handle_event(elli_startup, _Args, _Config) ->
 
   Registry = default,
 
-  prometheus_summary:declare([{name, telemetry_scrape_duration_seconds},
-                              {help, "Scrape duration"},
-                              {labels, ["registry", "content_type"]},
-                              {registry, Registry}]),
-  prometheus_summary:declare([{name, telemetry_scrape_size_bytes},
-                              {help, "Scrape size, uncompressed"},
-                              {labels, ["registry", "content_type"]},
-                              {registry, Registry}]),
-
+  ScrapeDuration = [{name, ?SCRAPE_DURATION},
+                    {help, "Scrape duration"},
+                    {labels, ["registry", "content_type"]},
+                    {registry, Registry}],
+  ScrapeSize = [{name, ?SCRAPE_SIZE},
+                {help, "Scrape size, uncompressed"},
+                {labels, ["registry", "content_type"]},
+                {registry, Registry}],
+  prometheus_summary:declare(ScrapeDuration),
+  prometheus_summary:declare(ScrapeSize),
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
@@ -138,7 +142,7 @@ handle_event(_Event, _Args, _Config) -> ok.
 %%% Private functions
 %%%===================================================================
 
-handle_full_response(Type, [Req,Code,_Hs,_B,{Timings, Sizes}], _Config) ->
+handle_full_response(Type, [Req, Code, _Hs, _B, {Timings, Sizes}], _Config) ->
   Labels = labels(Req, Code),
   TypedLabels = case Type of
                   request_complete -> ["full" | Labels];
@@ -174,10 +178,10 @@ format_metrics(Req) ->
   case negotiate(Req) of
     undefined ->
       throw({406, [], <<>>});
-    
+
     Format ->
       ContentType = Format:content_type(),
-      
+
       Scrape = prometheus_summary:observe_duration(
                  Registry,
                  telemetry_scrape_duration_seconds,
@@ -185,9 +189,9 @@ format_metrics(Req) ->
                  fun () -> Format:format(Registry) end),
       prometheus_summary:observe(Registry,
                                  telemetry_scrape_size_bytes,
-                             [Registry, ContentType],
+                                 [Registry, ContentType],
                                  iolist_size(Scrape)),
-      
+
       {ok, [{<<"Content-Type">>, ContentType}], Scrape}
   end.
 
@@ -236,7 +240,10 @@ size(Sizes, response_body) ->
 metric(Name, Labels, Desc) -> metric(Name, Labels, [], Desc).
 
 metric(Name, Labels, Buckets, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc},{buckets,Buckets}].
+  [{name, Name},
+   {labels, Labels},
+   {help, "HTTP request " ++ Desc},
+   {buckets, Buckets}].
 
 labels(Req, StatusCode) ->
   Labels = elli_prometheus_config:labels(),
