@@ -50,6 +50,7 @@ elli_test_() ->
      fun init_stats/0, fun clear_stats/1,
      [?_test(hello_world()),
       ?_test(scrape()),
+      ?_test(scrape_neg()),
       ?_test(sendfile()),
       ?_test(chunked()),
       ?_test(bad_request_line()),
@@ -150,6 +151,21 @@ scrape() ->
 
   ?assertMatch(ExpectedSCount, SCount),
   ?assertEqual(true, SDuration > 0 andalso SDuration < 0.01).
+
+scrape_neg() ->
+  Accept = "application/vnd.google.protobuf;"
+    "proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.7,"
+    "text/plain;version=0.0.4;q=0.3,"
+    "application/json;schema=\"prometheus/telemetry\";version=0.0.2;q=0.2,"
+    "*/*;q=0.1",
+  {ok, Response} = httpc:request(get, {"http://localhost:3001/metrics",
+                                       [{"Accept", Accept}]}, [], []),
+  ?assertMatch(200, status(Response)),
+  CT = prometheus_protobuf_format:content_type(),
+  ExpectedCT = binary_to_list(CT),
+  ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-length", _},
+                {"content-type", ExpectedCT}], headers(Response)).
 
 sendfile() ->
   {ok, Response} = httpc:request("http://localhost:3001/sendfile"),
