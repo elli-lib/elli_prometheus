@@ -91,15 +91,20 @@ For failed requests:
    
 Exporter metrics:
 
-Labels: `registry`, `content_type`.
-
 * `telemetry_scrape_duration_seconds`<br />
 Type: summary.<br />
+Labels: `registry`, `content_type`.<br />
 Scrape duration.
 
 * `telemetry_scrape_size_bytes`<br />
 Type: summary.<br />
-Scrape size, uncompressed.
+Labels: `registry`, `content_type`.<br />
+Scrape size, not encoded.
+
+* `telemetry_scrape_encoded_size_bytes`<br />
+Type: summary.<br />
+Labels: `registry`, `content_type`, `encoding`.<br />
+Scrape size, encoded.
 
 ## Dependencies
 

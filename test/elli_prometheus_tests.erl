@@ -8,7 +8,7 @@
         "# TYPE http_client_closed_total counter
 # HELP http_client_closed_total HTTP request \"client_closed\" errors count
 # TYPE http_requests_failed_total counter
-        # HELP http_requests_failed_total HTTP request failed total count.
+# HELP http_requests_failed_total HTTP request failed total count.
 # TYPE http_client_timeout_total counter
 # HELP http_client_timeout_total HTTP request \"client_timeout\" errors count
 # TYPE http_bad_requests_total counter
@@ -32,13 +32,15 @@
 # TYPE http_response_size_bytes summary
 # HELP http_response_size_bytes HTTP request total response size
 # TYPE telemetry_scrape_size_bytes summary
-# HELP telemetry_scrape_size_bytes Scrape size, uncompressed
+# HELP telemetry_scrape_size_bytes Scrape size, not encoded
+# TYPE telemetry_scrape_encoded_size_bytes summary
+# HELP telemetry_scrape_encoded_size_bytes Scrape size, encoded
 # TYPE http_response_headers_size_bytes summary
 # HELP http_response_headers_size_bytes HTTP request response headers size
 
 ").
 
--define(EMPTY_SCRAPE_SIZE, 1762).
+-define(EMPTY_SCRAPE_SIZE, 1876).
 
 normalize_text_scrape(Scrape) ->
   lists:sort(lists:map(fun string:strip/1, string:tokens(Scrape, "\n"))).
@@ -146,6 +148,9 @@ scrape() ->
   ?assertMatch({ExpectedSCount, ?EMPTY_SCRAPE_SIZE},
                summary_value(telemetry_scrape_size_bytes,
                              [default, CT])),
+  ?assertMatch({ExpectedSCount, ?EMPTY_SCRAPE_SIZE},
+               summary_value(telemetry_scrape_encoded_size_bytes,
+                             [default, CT, <<"identity">>])),
 
   {SCount, SDuration} = summary_value(telemetry_scrape_duration_seconds,
                                       [default, CT]),
@@ -182,7 +187,19 @@ scrape_neg() ->
   ?assertMatch([{"connection", "Keep-Alive"},
                 {"content-encoding", "deflate"},
                 {"content-length", _},
-                {"content-type", ExpectedCT}], headers(ResponseDeflate)).
+                {"content-type", ExpectedCT}], headers(ResponseDeflate)),
+
+  {GZipCount, GZipSize} = summary_value(telemetry_scrape_encoded_size_bytes,
+                                        [default, CT, <<"gzip">>]),
+
+  ?assert(GZipCount =:= 1),
+  ?assert(GZipSize > 0),
+
+  {DeflateCount, DeflateSize} = summary_value(telemetry_scrape_encoded_size_bytes,
+                                              [default, CT, <<"deflate">>]),
+
+  ?assert(DeflateCount =:= 1),
+  ?assert(DeflateSize > 0).
 
 sendfile() ->
   {ok, Response} = httpc:request("http://localhost:3001/sendfile"),

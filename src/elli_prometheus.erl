@@ -33,6 +33,7 @@
 
 -define(SCRAPE_DURATION, telemetry_scrape_duration_seconds).
 -define(SCRAPE_SIZE, telemetry_scrape_size_bytes).
+-define(SCRAPE_ENCODED_SIZE, telemetry_scrape_encoded_size_bytes).
 
 %%%===================================================================
 %%% elli_handler callbacks
@@ -130,11 +131,16 @@ handle_event(elli_startup, _Args, _Config) ->
                     {labels, ["registry", "content_type"]},
                     {registry, Registry}],
   ScrapeSize = [{name, ?SCRAPE_SIZE},
-                {help, "Scrape size, uncompressed"},
+                {help, "Scrape size, not encoded"},
                 {labels, ["registry", "content_type"]},
                 {registry, Registry}],
+  ScrapeEncodedSize = [{name, ?SCRAPE_ENCODED_SIZE},
+                       {help, "Scrape size, encoded"},
+                       {labels, ["registry", "content_type", "encoding"]},
+                       {registry, Registry}],
   prometheus_summary:declare(ScrapeDuration),
   prometheus_summary:declare(ScrapeSize),
+  prometheus_summary:declare(ScrapeEncodedSize),
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
@@ -184,9 +190,7 @@ format_metrics(Req) ->
         undefined ->
           throw({406, [], <<>>});
         Encoding ->
-          Encoded = encode_format(Encoding, Scrape),
-          {ok, [{<<"Content-Type">>, ContentType},
-                {<<"Content-Encoding">>, Encoding}], Encoded}
+          encode_format(ContentType, Encoding, Scrape)
       end
   end.
 
@@ -213,18 +217,28 @@ render_format(Format) ->
 
   Scrape = prometheus_summary:observe_duration(
              Registry,
-             telemetry_scrape_duration_seconds,
+             ?SCRAPE_DURATION,
              [Registry, ContentType],
              fun () -> Format:format(Registry) end),
   prometheus_summary:observe(Registry,
-                             telemetry_scrape_size_bytes,
+                             ?SCRAPE_SIZE,
                              [Registry, ContentType],
                              iolist_size(Scrape)),
   {ContentType, Scrape}.
 
-encode_format(<<"gzip">>, Scrape) ->
+encode_format(ContentType, Encoding, Scrape) ->
+  Encoded = encode_format_(Encoding, Scrape),
+  Registry = default,
+  prometheus_summary:observe(Registry,
+                             ?SCRAPE_ENCODED_SIZE,
+                             [Registry, ContentType, Encoding],
+                             iolist_size(Encoded)),
+  {ok, [{<<"Content-Type">>, ContentType},
+        {<<"Content-Encoding">>, Encoding}], Encoded}.
+
+encode_format_(<<"gzip">>, Scrape) ->
   zlib:gzip(Scrape);
-encode_format(<<"deflate">>, Scrape) ->
+encode_format_(<<"deflate">>, Scrape) ->
   ZStream = zlib:open(),
   zlib:deflateInit(ZStream),
   try
@@ -232,7 +246,7 @@ encode_format(<<"deflate">>, Scrape) ->
   after
     zlib:deflateEnd(ZStream)
   end;
-encode_format(<<"identity">>, Scrape) ->
+encode_format_(<<"identity">>, Scrape) ->
   Scrape.
 
 duration(Timings, request) ->
