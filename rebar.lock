@@ -1,6 +1,6 @@
 {"1.1.0",
-[{<<"accept">>,{pkg,<<"accept">>,<<"0.1.0">>},0}]}.
+[{<<"accept">>,{pkg,<<"accept">>,<<"0.3.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"accept">>, <<"0385EAA20DB9E13D73B5A5F68594C4FD52FCAEEDD8D774836CE9E78E299E15D0">>}]}
+ {<<"accept">>, <<"2505B60BCB992CA79BD03AB7B8FEC8A520A47D9730F286DF1A479CC98B03F94B">>}]}
 ].
