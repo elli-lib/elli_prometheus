@@ -174,28 +174,23 @@ count_failed_request(Reason) ->
   prometheus_counter:inc(?FAILED_TOTAL, [Reason]).
 
 format_metrics(Req) ->
-  Registry = default,
-  case negotiate(Req) of
+  case negotiate_format(Req) of
     undefined ->
       throw({406, [], <<>>});
 
     Format ->
-      ContentType = Format:content_type(),
-
-      Scrape = prometheus_summary:observe_duration(
-                 Registry,
-                 telemetry_scrape_duration_seconds,
-                 [Registry, ContentType],
-                 fun () -> Format:format(Registry) end),
-      prometheus_summary:observe(Registry,
-                                 telemetry_scrape_size_bytes,
-                                 [Registry, ContentType],
-                                 iolist_size(Scrape)),
-
-      {ok, [{<<"Content-Type">>, ContentType}], Scrape}
+      {ContentType, Scrape} = render_format(Format),
+      case negotiate_encoding(Req) of
+        undefined ->
+          throw({406, [], <<>>});
+        Encoding ->
+          Encoded = encode_format(Encoding, Scrape),
+          {ok, [{<<"Content-Type">>, ContentType},
+                {<<"Content-Encoding">>, Encoding}], Encoded}
+      end
   end.
 
-negotiate(Req) ->
+negotiate_format(Req) ->
   case elli_prometheus_config:format() of
     auto ->
       Accept = elli_request:get_header(<<"Accept">>, Req, "text/plain"),
@@ -204,6 +199,41 @@ negotiate(Req) ->
     undefined -> undefined;
     Format0 -> Format0
   end.
+
+negotiate_encoding(Req) ->
+  AcceptEncoding = elli_request:get_header(
+                     <<"Accept-Encoding">>, Req, ""),
+  accept_encoding_header:negotiate(AcceptEncoding, [<<"gzip">>,
+                                                    <<"deflate">>,
+                                                    <<"identity">>]).
+
+render_format(Format) ->
+  Registry = default,
+  ContentType = Format:content_type(),
+
+  Scrape = prometheus_summary:observe_duration(
+             Registry,
+             telemetry_scrape_duration_seconds,
+             [Registry, ContentType],
+             fun () -> Format:format(Registry) end),
+  prometheus_summary:observe(Registry,
+                             telemetry_scrape_size_bytes,
+                             [Registry, ContentType],
+                             iolist_size(Scrape)),
+  {ContentType, Scrape}.
+
+encode_format(<<"gzip">>, Scrape) ->
+  zlib:gzip(Scrape);
+encode_format(<<"deflate">>, Scrape) ->
+  ZStream = zlib:open(),
+  zlib:deflateInit(ZStream),
+  try
+    zlib:deflate(ZStream, Scrape, finish)
+  after
+    zlib:deflateEnd(ZStream)
+  end;
+encode_format(<<"identity">>, Scrape) ->
+  Scrape.
 
 duration(Timings, request) ->
   duration(request_start, request_end, Timings);

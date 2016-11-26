@@ -135,6 +135,7 @@ scrape() ->
   CT = prometheus_text_format:content_type(),
   ExpectedCT = binary_to_list(CT),
   ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-encoding","identity"},
                 {"content-length", ExpectedCL},
                 {"content-type", ExpectedCT}], headers(Response)),
   ?assertEqual(normalize_text_scrape(?EMPTY_SCRAPE_TEXT),
@@ -158,14 +159,30 @@ scrape_neg() ->
     "text/plain;version=0.0.4;q=0.3,"
     "application/json;schema=\"prometheus/telemetry\";version=0.0.2;q=0.2,"
     "*/*;q=0.1",
-  {ok, Response} = httpc:request(get, {"http://localhost:3001/metrics",
-                                       [{"Accept", Accept}]}, [], []),
-  ?assertMatch(200, status(Response)),
+
+  {ok, ResponseGzip} =
+    httpc:request(get, {"http://localhost:3001/metrics",
+                        [{"Accept", Accept},
+                         {"Accept-Encoding", "gzip"}]}, [], []),
+  ?assertMatch(200, status(ResponseGzip)),
   CT = prometheus_protobuf_format:content_type(),
   ExpectedCT = binary_to_list(CT),
   ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-encoding", "gzip"},
                 {"content-length", _},
-                {"content-type", ExpectedCT}], headers(Response)).
+                {"content-type", ExpectedCT}], headers(ResponseGzip)),
+
+  {ok, ResponseDeflate} =
+    httpc:request(get, {"http://localhost:3001/metrics",
+                        [{"Accept", Accept},
+                         {"Accept-Encoding", "deflate"}]}, [], []),
+  ?assertMatch(200, status(ResponseDeflate)),
+  CT = prometheus_protobuf_format:content_type(),
+  ExpectedCT = binary_to_list(CT),
+  ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-encoding", "deflate"},
+                {"content-length", _},
+                {"content-type", ExpectedCT}], headers(ResponseDeflate)).
 
 sendfile() ->
   {ok, Response} = httpc:request("http://localhost:3001/sendfile"),
