@@ -33,6 +33,7 @@
 
 -define(SCRAPE_DURATION, telemetry_scrape_duration_seconds).
 -define(SCRAPE_SIZE, telemetry_scrape_size_bytes).
+-define(SCRAPE_ENCODED_SIZE, telemetry_scrape_encoded_size_bytes).
 
 %%%===================================================================
 %%% elli_handler callbacks
@@ -130,11 +131,16 @@ handle_event(elli_startup, _Args, _Config) ->
                     {labels, ["registry", "content_type"]},
                     {registry, Registry}],
   ScrapeSize = [{name, ?SCRAPE_SIZE},
-                {help, "Scrape size, uncompressed"},
+                {help, "Scrape size, not encoded"},
                 {labels, ["registry", "content_type"]},
                 {registry, Registry}],
+  ScrapeEncodedSize = [{name, ?SCRAPE_ENCODED_SIZE},
+                       {help, "Scrape size, encoded"},
+                       {labels, ["registry", "content_type", "encoding"]},
+                       {registry, Registry}],
   prometheus_summary:declare(ScrapeDuration),
   prometheus_summary:declare(ScrapeSize),
+  prometheus_summary:declare(ScrapeEncodedSize),
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
@@ -174,28 +180,21 @@ count_failed_request(Reason) ->
   prometheus_counter:inc(?FAILED_TOTAL, [Reason]).
 
 format_metrics(Req) ->
-  Registry = default,
-  case negotiate(Req) of
+  case negotiate_format(Req) of
     undefined ->
       throw({406, [], <<>>});
 
     Format ->
-      ContentType = Format:content_type(),
-
-      Scrape = prometheus_summary:observe_duration(
-                 Registry,
-                 telemetry_scrape_duration_seconds,
-                 [Registry, ContentType],
-                 fun () -> Format:format(Registry) end),
-      prometheus_summary:observe(Registry,
-                                 telemetry_scrape_size_bytes,
-                                 [Registry, ContentType],
-                                 iolist_size(Scrape)),
-
-      {ok, [{<<"Content-Type">>, ContentType}], Scrape}
+      {ContentType, Scrape} = render_format(Format),
+      case negotiate_encoding(Req) of
+        undefined ->
+          throw({406, [], <<>>});
+        Encoding ->
+          encode_format(ContentType, Encoding, Scrape)
+      end
   end.
 
-negotiate(Req) ->
+negotiate_format(Req) ->
   case elli_prometheus_config:format() of
     auto ->
       Accept = elli_request:get_header(<<"Accept">>, Req, "text/plain"),
@@ -204,6 +203,51 @@ negotiate(Req) ->
     undefined -> undefined;
     Format0 -> Format0
   end.
+
+negotiate_encoding(Req) ->
+  AcceptEncoding = elli_request:get_header(
+                     <<"Accept-Encoding">>, Req, ""),
+  accept_encoding_header:negotiate(AcceptEncoding, [<<"gzip">>,
+                                                    <<"deflate">>,
+                                                    <<"identity">>]).
+
+render_format(Format) ->
+  Registry = default,
+  ContentType = Format:content_type(),
+
+  Scrape = prometheus_summary:observe_duration(
+             Registry,
+             ?SCRAPE_DURATION,
+             [Registry, ContentType],
+             fun () -> Format:format(Registry) end),
+  prometheus_summary:observe(Registry,
+                             ?SCRAPE_SIZE,
+                             [Registry, ContentType],
+                             iolist_size(Scrape)),
+  {ContentType, Scrape}.
+
+encode_format(ContentType, Encoding, Scrape) ->
+  Encoded = encode_format_(Encoding, Scrape),
+  Registry = default,
+  prometheus_summary:observe(Registry,
+                             ?SCRAPE_ENCODED_SIZE,
+                             [Registry, ContentType, Encoding],
+                             iolist_size(Encoded)),
+  {ok, [{<<"Content-Type">>, ContentType},
+        {<<"Content-Encoding">>, Encoding}], Encoded}.
+
+encode_format_(<<"gzip">>, Scrape) ->
+  zlib:gzip(Scrape);
+encode_format_(<<"deflate">>, Scrape) ->
+  ZStream = zlib:open(),
+  zlib:deflateInit(ZStream),
+  try
+    zlib:deflate(ZStream, Scrape, finish)
+  after
+    zlib:deflateEnd(ZStream)
+  end;
+encode_format_(<<"identity">>, Scrape) ->
+  Scrape.
 
 duration(Timings, request) ->
   duration(request_start, request_end, Timings);
