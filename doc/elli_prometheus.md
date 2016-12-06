@@ -7,7 +7,7 @@
 
 Elli middleware for collecting stats via Prometheus.
 
-Copyright (c) 2016 Eric Bailey
+Copyright (c) 2016 elli-lib team
 
 __Version:__ 0.0.1
 

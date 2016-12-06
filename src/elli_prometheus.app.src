@@ -6,7 +6,7 @@
   {env,          []},
   {modules,      [elli_prometheus]},
 
-  {maintainers, ["Eric Bailey"]},
+  {maintainers, ["elli-lib team"]},
   {licenses,    ["BSD-3"]},
   {links, [
     {"GitHub", "https://github.com/elli-lib/elli_prometheus"}

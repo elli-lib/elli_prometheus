@@ -1,8 +1,19 @@
 
 
 # Module elli_prometheus_config #
+* [Description](#description)
 * [Function Index](#index)
 * [Function Details](#functions)
+
+elli_prometheus config helpers.
+
+Copyright (c) 2016 elli-lib team
+
+__Version:__ 0.0.1
+
+__Authors:__ Ilya Khaprov.
+
+__See also:__ [elli_prometheus](elli_prometheus.md).
 
 <a name="index"></a>
 
