@@ -1,11 +1,15 @@
-elli_prometheus
-=====
-[![Build Status](https://travis-ci.org/elli-lib/elli_prometheus.svg?branch=master)](https://travis-ci.org/elli-lib/elli_prometheus)
+# elli_prometheus
 
-[Elli][] middleware for collecting stats via [Prometheus][].
+[![Hex.pm][hex badge]][hex package]
+[![Documentation][docs badge]][docs]
+[![Erlang][erlang badge]][erlang downloads]
+[![Travis CI][build badge]][travis link]
+[![Coveralls][coverage badge]][coveralls link]
+[![BSD-3 License][license badge]](LICENSE)
 
-Metrics
------
+*[Elli][] middleware for collecting stats via [Prometheus][].*
+
+## Metrics
 
 How Elli represents timings:
 
@@ -87,22 +91,38 @@ For failed requests:
    
 Exporter metrics:
 
-Labels: `registry`, `content_type`.
-
 * `telemetry_scrape_duration_seconds`<br />
 Type: summary.<br />
+Labels: `registry`, `content_type`.<br />
 Scrape duration.
 
 * `telemetry_scrape_size_bytes`<br />
 Type: summary.<br />
-Scrape size, uncompressed.
+Labels: `registry`, `content_type`.<br />
+Scrape size, not encoded.
 
-Dependencies
------
+* `telemetry_scrape_encoded_size_bytes`<br />
+Type: summary.<br />
+Labels: `registry`, `content_type`, `encoding`.<br />
+Scrape size, encoded.
+
+## Dependencies
 
 `elli_prometheus` requires [Elli][] and [Prometheus][], but neither are included
-in this project. It has been tested and is known to work with `{elli, "1.0.5"}`
-and `{prometheus, "1.7.0"}`.
+in this project. It has been tested and is known to work with `{elli, "2.0.0"}`
+and `{prometheus, "3.1.0"}`.
 
-[Elli]: https://github.com/knutin/elli
+[hex badge]: https://img.shields.io/hexpm/v/elli_prometheus.svg?maxAge=2592000
+[hex package]: https://hex.pm/packages/elli_prometheus
+[erlang badge]: https://img.shields.io/badge/erlang-%E2%89%A518.0-red.svg
+[erlang downloads]: http://www.erlang.org/downloads
+[build badge]: https://travis-ci.org/elli-lib/elli_prometheus.svg?branch=develop
+[travis link]: https://travis-ci.org/elli-lib/elli_prometheus
+[docs badge]: https://img.shields.io/badge/docs-edown-green.svg
+[docs]: doc/README.md
+[coverage badge]: https://coveralls.io/repos/github/elli-lib/elli_prometheus/badge.svg?branch=develop
+[coveralls link]: https://coveralls.io/github/elli-lib/elli_prometheus?branch=develop
+[license badge]: https://img.shields.io/badge/license-BSD--3-blue.svg
+
+[Elli]: https://github.com/elli-lib/elli
 [Prometheus]: https://github.com/deadtrickster/prometheus.erl

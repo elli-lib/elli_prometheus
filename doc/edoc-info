@@ -1,12 +1,3 @@
 %% encoding: UTF-8
 {application,elli_prometheus}.
-{modules,[elli,elli_example_callback,elli_example_callback_handover,
-          elli_example_middleware,elli_handler,elli_http,elli_middleware,
-          elli_middleware_compress,elli_prometheus,elli_request,elli_tcp,
-          elli_test,elli_util,prometheus,prometheus_buckets,
-          prometheus_collector,prometheus_counter,prometheus_format,
-          prometheus_gauge,prometheus_histogram,prometheus_metric,
-          prometheus_misc,prometheus_model,prometheus_model_helpers,
-          prometheus_protobuf_format,prometheus_registry,prometheus_summary,
-          prometheus_sup,prometheus_text_format,
-          prometheus_vm_memory_collector,prometheus_vm_statistics_collector]}.
+{modules,[elli_prometheus,elli_prometheus_config]}.

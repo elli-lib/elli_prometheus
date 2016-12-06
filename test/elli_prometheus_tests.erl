@@ -8,7 +8,7 @@
         "# TYPE http_client_closed_total counter
 # HELP http_client_closed_total HTTP request \"client_closed\" errors count
 # TYPE http_requests_failed_total counter
-        # HELP http_requests_failed_total HTTP request failed total count.
+# HELP http_requests_failed_total HTTP request failed total count.
 # TYPE http_client_timeout_total counter
 # HELP http_client_timeout_total HTTP request \"client_timeout\" errors count
 # TYPE http_bad_requests_total counter
@@ -32,13 +32,15 @@
 # TYPE http_response_size_bytes summary
 # HELP http_response_size_bytes HTTP request total response size
 # TYPE telemetry_scrape_size_bytes summary
-# HELP telemetry_scrape_size_bytes Scrape size, uncompressed
+# HELP telemetry_scrape_size_bytes Scrape size, not encoded
+# TYPE telemetry_scrape_encoded_size_bytes summary
+# HELP telemetry_scrape_encoded_size_bytes Scrape size, encoded
 # TYPE http_response_headers_size_bytes summary
 # HELP http_response_headers_size_bytes HTTP request response headers size
 
 ").
 
--define(EMPTY_SCRAPE_SIZE, 1762).
+-define(EMPTY_SCRAPE_SIZE, 1876).
 
 normalize_text_scrape(Scrape) ->
   lists:sort(lists:map(fun string:strip/1, string:tokens(Scrape, "\n"))).
@@ -50,6 +52,7 @@ elli_test_() ->
      fun init_stats/0, fun clear_stats/1,
      [?_test(hello_world()),
       ?_test(scrape()),
+      ?_test(scrape_neg()),
       ?_test(sendfile()),
       ?_test(chunked()),
       ?_test(bad_request_line()),
@@ -134,6 +137,7 @@ scrape() ->
   CT = prometheus_text_format:content_type(),
   ExpectedCT = binary_to_list(CT),
   ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-encoding","identity"},
                 {"content-length", ExpectedCL},
                 {"content-type", ExpectedCT}], headers(Response)),
   ?assertEqual(normalize_text_scrape(?EMPTY_SCRAPE_TEXT),
@@ -144,12 +148,58 @@ scrape() ->
   ?assertMatch({ExpectedSCount, ?EMPTY_SCRAPE_SIZE},
                summary_value(telemetry_scrape_size_bytes,
                              [default, CT])),
+  ?assertMatch({ExpectedSCount, ?EMPTY_SCRAPE_SIZE},
+               summary_value(telemetry_scrape_encoded_size_bytes,
+                             [default, CT, <<"identity">>])),
 
   {SCount, SDuration} = summary_value(telemetry_scrape_duration_seconds,
                                       [default, CT]),
 
   ?assertMatch(ExpectedSCount, SCount),
   ?assertEqual(true, SDuration > 0 andalso SDuration < 0.01).
+
+scrape_neg() ->
+  Accept = "application/vnd.google.protobuf;"
+    "proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.7,"
+    "text/plain;version=0.0.4;q=0.3,"
+    "application/json;schema=\"prometheus/telemetry\";version=0.0.2;q=0.2,"
+    "*/*;q=0.1",
+
+  {ok, ResponseGzip} =
+    httpc:request(get, {"http://localhost:3001/metrics",
+                        [{"Accept", Accept},
+                         {"Accept-Encoding", "gzip"}]}, [], []),
+  ?assertMatch(200, status(ResponseGzip)),
+  CT = prometheus_protobuf_format:content_type(),
+  ExpectedCT = binary_to_list(CT),
+  ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-encoding", "gzip"},
+                {"content-length", _},
+                {"content-type", ExpectedCT}], headers(ResponseGzip)),
+
+  {ok, ResponseDeflate} =
+    httpc:request(get, {"http://localhost:3001/metrics",
+                        [{"Accept", Accept},
+                         {"Accept-Encoding", "deflate"}]}, [], []),
+  ?assertMatch(200, status(ResponseDeflate)),
+  CT = prometheus_protobuf_format:content_type(),
+  ExpectedCT = binary_to_list(CT),
+  ?assertMatch([{"connection", "Keep-Alive"},
+                {"content-encoding", "deflate"},
+                {"content-length", _},
+                {"content-type", ExpectedCT}], headers(ResponseDeflate)),
+
+  {GZipCount, GZipSize} = summary_value(telemetry_scrape_encoded_size_bytes,
+                                        [default, CT, <<"gzip">>]),
+
+  ?assert(GZipCount =:= 1),
+  ?assert(GZipSize > 0),
+
+  {DeflateCount, DeflateSize} = summary_value(telemetry_scrape_encoded_size_bytes,
+                                              [default, CT, <<"deflate">>]),
+
+  ?assert(DeflateCount =:= 1),
+  ?assert(DeflateSize > 0).
 
 sendfile() ->
   {ok, Response} = httpc:request("http://localhost:3001/sendfile"),

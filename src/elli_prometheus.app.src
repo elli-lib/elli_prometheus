@@ -1,12 +1,12 @@
 {application, elli_prometheus, [
   {description,  "Elli middleware for collecting stats via Prometheus."},
-  {vsn,          "0.0.1"},
+  {vsn,          "0.1.0"},
   {registered,   []},
   {applications, [kernel, stdlib]},
   {env,          []},
   {modules,      [elli_prometheus]},
 
-  {maintainers, ["Eric Bailey"]},
+  {maintainers, ["elli-lib team"]},
   {licenses,    ["BSD-3"]},
   {links, [
     {"GitHub", "https://github.com/elli-lib/elli_prometheus"}

@@ -1,9 +1,9 @@
 %% @doc Elli middleware for collecting stats via Prometheus.
 %% @author Eric Bailey
 %% @author Ilya Khaprov
-%% @version 0.0.1
+%% @version 0.1.0
 %% @reference <a href="https://prometheus.io">Prometheus</a>
-%% @copyright 2016 Eric Bailey
+%% @copyright 2016 elli-lib team
 -module(elli_prometheus).
 -author("Eric Bailey").
 -author("Ilya Khaprov").
@@ -11,7 +11,7 @@
 -behaviour(elli_handler).
 
 %% elli_handler callbacks
--export([handle/2,handle_event/3]).
+-export([handle/2, handle_event/3]).
 
 %% Metrics for successful requests
 -define(TOTAL, http_requests_total).
@@ -31,6 +31,10 @@
 -define(CLIENT_CLOSED_TOTAL, http_client_closed_total).
 -define(CLIENT_TIMEOUT_TOTAL, http_client_timeout_total).
 
+-define(SCRAPE_DURATION, telemetry_scrape_duration_seconds).
+-define(SCRAPE_SIZE, telemetry_scrape_size_bytes).
+-define(SCRAPE_ENCODED_SIZE, telemetry_scrape_encoded_size_bytes).
+
 %%%===================================================================
 %%% elli_handler callbacks
 %%%===================================================================
@@ -40,8 +44,8 @@
 %% TODO: Add links to Prometheus and Prometheus.erl docs.
 handle(Req, _Config) ->
   Path = elli_prometheus_config:path(),
-  case {elli_request:method(Req),elli_request:raw_path(Req)} of
-    {'GET', Path} -> format_metrics();
+  case {elli_request:method(Req), elli_request:raw_path(Req)} of
+    {'GET', Path} -> format_metrics(Req);
     _             -> ignore
   end.
 
@@ -122,15 +126,21 @@ handle_event(elli_startup, _Args, _Config) ->
 
   Registry = default,
 
-  prometheus_summary:declare([{name, telemetry_scrape_duration_seconds},
-                              {help, "Scrape duration"},
-                              {labels, ["registry", "content_type"]},
-                              {registry, Registry}]),
-  prometheus_summary:declare([{name, telemetry_scrape_size_bytes},
-                              {help, "Scrape size, uncompressed"},
-                              {labels, ["registry", "content_type"]},
-                              {registry, Registry}]),
-
+  ScrapeDuration = [{name, ?SCRAPE_DURATION},
+                    {help, "Scrape duration"},
+                    {labels, ["registry", "content_type"]},
+                    {registry, Registry}],
+  ScrapeSize = [{name, ?SCRAPE_SIZE},
+                {help, "Scrape size, not encoded"},
+                {labels, ["registry", "content_type"]},
+                {registry, Registry}],
+  ScrapeEncodedSize = [{name, ?SCRAPE_ENCODED_SIZE},
+                       {help, "Scrape size, encoded"},
+                       {labels, ["registry", "content_type", "encoding"]},
+                       {registry, Registry}],
+  prometheus_summary:declare(ScrapeDuration),
+  prometheus_summary:declare(ScrapeSize),
+  prometheus_summary:declare(ScrapeEncodedSize),
   ok;
 handle_event(_Event, _Args, _Config) -> ok.
 
@@ -138,12 +148,12 @@ handle_event(_Event, _Args, _Config) -> ok.
 %%% Private functions
 %%%===================================================================
 
-handle_full_response(Type, [Req,Code,_Hs,_B,{Timings, Sizes}], _Config) ->
+handle_full_response(Type, [Req, Code, _Hs, _B, {Timings, Sizes}], _Config) ->
   Labels = labels(Req, Code),
   TypedLabels = case Type of
                   request_complete -> ["full" | Labels];
-                  chunk_complete -> ["chunks" | Labels];
-                  _ -> Labels
+                  chunk_complete -> ["chunks" | Labels] %;
+                  %% _ -> Labels
                 end,
   prometheus_counter:inc(?TOTAL, Labels),
 
@@ -169,22 +179,75 @@ handle_full_response(Type, [Req,Code,_Hs,_B,{Timings, Sizes}], _Config) ->
 count_failed_request(Reason) ->
   prometheus_counter:inc(?FAILED_TOTAL, [Reason]).
 
-format_metrics() ->
+format_metrics(Req) ->
+  case negotiate_format(Req) of
+    undefined ->
+      throw({406, [], <<>>});
+
+    Format ->
+      {ContentType, Scrape} = render_format(Format),
+      case negotiate_encoding(Req) of
+        undefined ->
+          throw({406, [], <<>>});
+        Encoding ->
+          encode_format(ContentType, Encoding, Scrape)
+      end
+  end.
+
+negotiate_format(Req) ->
+  case elli_prometheus_config:format() of
+    auto ->
+      Accept = elli_request:get_header(<<"Accept">>, Req, "text/plain"),
+      Alternatives = elli_prometheus_config:allowed_formats(),
+      accept_header:negotiate(Accept, Alternatives);
+    undefined -> undefined;
+    Format0 -> Format0
+  end.
+
+negotiate_encoding(Req) ->
+  AcceptEncoding = elli_request:get_header(
+                     <<"Accept-Encoding">>, Req, ""),
+  accept_encoding_header:negotiate(AcceptEncoding, [<<"gzip">>,
+                                                    <<"deflate">>,
+                                                    <<"identity">>]).
+
+render_format(Format) ->
   Registry = default,
-  Format = elli_prometheus_config:format(),
   ContentType = Format:content_type(),
 
   Scrape = prometheus_summary:observe_duration(
              Registry,
-             telemetry_scrape_duration_seconds,
+             ?SCRAPE_DURATION,
              [Registry, ContentType],
              fun () -> Format:format(Registry) end),
   prometheus_summary:observe(Registry,
-                             telemetry_scrape_size_bytes,
+                             ?SCRAPE_SIZE,
                              [Registry, ContentType],
                              iolist_size(Scrape)),
+  {ContentType, Scrape}.
 
-  {ok, [{<<"Content-Type">>, ContentType}], Scrape}.
+encode_format(ContentType, Encoding, Scrape) ->
+  Encoded = encode_format_(Encoding, Scrape),
+  Registry = default,
+  prometheus_summary:observe(Registry,
+                             ?SCRAPE_ENCODED_SIZE,
+                             [Registry, ContentType, Encoding],
+                             iolist_size(Encoded)),
+  {ok, [{<<"Content-Type">>, ContentType},
+        {<<"Content-Encoding">>, Encoding}], Encoded}.
+
+encode_format_(<<"gzip">>, Scrape) ->
+  zlib:gzip(Scrape);
+encode_format_(<<"deflate">>, Scrape) ->
+  ZStream = zlib:open(),
+  zlib:deflateInit(ZStream),
+  try
+    zlib:deflate(ZStream, Scrape, finish)
+  after
+    zlib:deflateEnd(ZStream)
+  end;
+encode_format_(<<"identity">>, Scrape) ->
+  Scrape.
 
 duration(Timings, request) ->
   duration(request_start, request_end, Timings);
@@ -221,7 +284,10 @@ size(Sizes, response_body) ->
 metric(Name, Labels, Desc) -> metric(Name, Labels, [], Desc).
 
 metric(Name, Labels, Buckets, Desc) ->
-  [{name,Name},{labels,Labels},{help,"HTTP request "++Desc},{buckets,Buckets}].
+  [{name, Name},
+   {labels, Labels},
+   {help, "HTTP request " ++ Desc},
+   {buckets, Buckets}].
 
 labels(Req, StatusCode) ->
   Labels = elli_prometheus_config:labels(),
