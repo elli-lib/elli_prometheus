@@ -1,7 +1,7 @@
 %% @doc Elli middleware for collecting stats via Prometheus.
 %% @author Eric Bailey
 %% @author Ilya Khaprov
-%% @version 0.0.1
+%% @version 0.1.0
 %% @reference <a href="https://prometheus.io">Prometheus</a>
 %% @copyright 2016 elli-lib team
 -module(elli_prometheus).
