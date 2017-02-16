@@ -1,7 +1,7 @@
 %% @doc Elli middleware for collecting stats via Prometheus.
 %% @author Eric Bailey
 %% @author Ilya Khaprov
-%% @version 0.1.0
+%% @version 0.1.1
 %% @reference <a href="https://prometheus.io">Prometheus</a>
 %% @copyright 2016 elli-lib team
 -module(elli_prometheus).
@@ -12,6 +12,9 @@
 
 %% elli_handler callbacks
 -export([handle/2, handle_event/3]).
+
+%% Service Metric
+-define(UP, elli_up).
 
 %% Metrics for successful requests
 -define(TOTAL, http_requests_total).
@@ -72,6 +75,8 @@ handle_event(bad_request, [{Reason, _}], _) ->
 handle_event(elli_startup, _Args, _Config) ->
   Labels        = elli_prometheus_config:labels(),
   Buckets       = elli_prometheus_config:duration_buckets(),
+  UP            = [{name, ?UP},
+                   {help, "Elli is up?"}],
   RequestCount  = metric(?TOTAL, Labels, "request count"),
   RequestDuration = metric(?REQUEST_DURATION, [response_type | Labels], Buckets,
                            " latencies in microseconds"),
@@ -96,6 +101,8 @@ handle_event(elli_startup, _Args, _Config) ->
   ResponseBody = metric(?RESPONSE_BODY_SIZE,
                         [response_type | Labels],
                         "response body size"),
+  prometheus_gauge:declare(UP),
+  prometheus_gauge:set(?UP, 1),
   prometheus_counter:declare(RequestCount),
   prometheus_histogram:declare(RequestDuration),
   prometheus_histogram:declare(RequestHeadersDuration),
@@ -149,32 +156,37 @@ handle_event(_Event, _Args, _Config) -> ok.
 %%%===================================================================
 
 handle_full_response(Type, [Req, Code, _Hs, _B, {Timings, Sizes}], _Config) ->
-  Labels = labels(Req, Code),
-  TypedLabels = case Type of
-                  request_complete -> ["full" | Labels];
-                  chunk_complete -> ["chunks" | Labels] %;
-                  %% _ -> Labels
-                end,
-  prometheus_counter:inc(?TOTAL, Labels),
+  Path = elli_prometheus_config:path(),
+  case {elli_request:method(Req), elli_request:raw_path(Req)} of
+    {'GET', Path} -> ok;
+    _ ->
+      Labels = labels(Req, Code),
+      TypedLabels = case Type of
+                      request_complete -> ["full" | Labels];
+                      chunk_complete -> ["chunks" | Labels] %;
+                                        %% _ -> Labels
+                    end,
+      prometheus_counter:inc(?TOTAL, Labels),
 
-  prometheus_histogram:observe(?REQUEST_DURATION, TypedLabels,
-                               duration(Timings, request)),
-  prometheus_histogram:observe(?REQUEST_HEADERS_DURATION, Labels,
-                               duration(Timings, headers)),
-  prometheus_histogram:observe(?REQUEST_BODY_DURATION, Labels,
-                               duration(Timings, body)),
-  prometheus_histogram:observe(?REQUEST_USER_DURATION, Labels,
-                               duration(Timings, user)),
-  prometheus_histogram:observe(?RESPONSE_SEND_DURATION, TypedLabels,
-                               duration(Timings, send)),
+      prometheus_histogram:observe(?REQUEST_DURATION, TypedLabels,
+                                   duration(Timings, request)),
+      prometheus_histogram:observe(?REQUEST_HEADERS_DURATION, Labels,
+                                   duration(Timings, headers)),
+      prometheus_histogram:observe(?REQUEST_BODY_DURATION, Labels,
+                                   duration(Timings, body)),
+      prometheus_histogram:observe(?REQUEST_USER_DURATION, Labels,
+                                   duration(Timings, user)),
+      prometheus_histogram:observe(?RESPONSE_SEND_DURATION, TypedLabels,
+                                   duration(Timings, send)),
 
-  prometheus_summary:observe(?RESPONSE_SIZE, TypedLabels,
-                             size(Sizes, response)),
-  prometheus_summary:observe(?RESPONSE_HEADERS_SIZE, TypedLabels,
-                             size(Sizes, response_headers)),
-  prometheus_summary:observe(?RESPONSE_BODY_SIZE, TypedLabels,
-                             size(Sizes, response_body)),
-  ok.
+      prometheus_summary:observe(?RESPONSE_SIZE, TypedLabels,
+                                 size(Sizes, response)),
+      prometheus_summary:observe(?RESPONSE_HEADERS_SIZE, TypedLabels,
+                                 size(Sizes, response_headers)),
+      prometheus_summary:observe(?RESPONSE_BODY_SIZE, TypedLabels,
+                                 size(Sizes, response_body)),
+      ok
+  end.
 
 count_failed_request(Reason) ->
   prometheus_counter:inc(?FAILED_TOTAL, [Reason]).

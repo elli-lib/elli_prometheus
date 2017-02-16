@@ -1,8 +1,8 @@
 {application, elli_prometheus, [
   {description,  "Elli middleware for collecting stats via Prometheus."},
-  {vsn,          "0.1.0"},
+  {vsn,          "0.1.1"},
   {registered,   []},
-  {applications, [kernel, stdlib]},
+  {applications, [kernel, stdlib, prometheus, accept]},
   {env,          []},
   {modules,      [elli_prometheus]},
 
