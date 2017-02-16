@@ -88,7 +88,7 @@ For failed requests:
   Parts:
    - `receiving_headers`;
    - `receiving_body`.
-   
+
 Exporter metrics:
 
 * `telemetry_scrape_duration_seconds`<br />
@@ -109,8 +109,8 @@ Scrape size, encoded.
 ## Dependencies
 
 `elli_prometheus` requires [Elli][] and [Prometheus][], but neither are included
-in this project. It has been tested and is known to work with `{elli, "2.0.0"}`
-and `{prometheus, "3.1.0"}`.
+in this project. It has been tested and is known to work with `{elli, "2.0.1"}`
+and `{prometheus, "3.1.1"}`.
 
 [hex badge]: https://img.shields.io/hexpm/v/elli_prometheus.svg?maxAge=2592000
 [hex package]: https://hex.pm/packages/elli_prometheus
