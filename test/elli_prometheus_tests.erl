@@ -4,43 +4,43 @@
 
 -define(README, "README.md").
 
--define(EMPTY_SCRAPE_TEXT,
-        "# TYPE http_client_closed_total counter
-# HELP http_client_closed_total HTTP request \"client_closed\" errors count
-# TYPE http_requests_failed_total counter
-# HELP http_requests_failed_total HTTP request failed total count.
-# TYPE http_client_timeout_total counter
-# HELP http_client_timeout_total HTTP request \"client_timeout\" errors count
-# TYPE http_bad_requests_total counter
+-define(EMPTY_SCRAPE_TEXT, "# HELP elli_up Elli is up?
 # HELP http_bad_requests_total HTTP request \"bad_request\" errors count
-# TYPE http_requests_total counter
-# HELP http_requests_total HTTP request request count
-# TYPE http_request_duration_microseconds histogram
-# HELP http_request_duration_microseconds HTTP request  latencies in microseconds
-# TYPE http_request_headers_microseconds histogram
-# HELP http_request_headers_microseconds HTTP request time spent receiving and parsing headers
-# TYPE http_request_user_microseconds histogram
-# HELP http_request_user_microseconds HTTP request time spent in user callback
-# TYPE http_response_send_microseconds histogram
-# HELP http_response_send_microseconds HTTP request time spent sending reply
-# TYPE http_request_body_microseconds histogram
+# HELP http_client_closed_total HTTP request \"client_closed\" errors count
+# HELP http_client_timeout_total HTTP request \"client_timeout\" errors count
 # HELP http_request_body_microseconds HTTP request time spent receiving and parsing body
-# TYPE http_response_body_size_bytes summary
+# HELP http_request_duration_microseconds HTTP request  latencies in microseconds
+# HELP http_request_headers_microseconds HTTP request time spent receiving and parsing headers
+# HELP http_request_user_microseconds HTTP request time spent in user callback
+# HELP http_requests_failed_total HTTP request failed total count.
+# HELP http_requests_total HTTP request request count
 # HELP http_response_body_size_bytes HTTP request response body size
-# TYPE telemetry_scrape_duration_seconds summary
-# HELP telemetry_scrape_duration_seconds Scrape duration
-# TYPE http_response_size_bytes summary
-# HELP http_response_size_bytes HTTP request total response size
-# TYPE telemetry_scrape_size_bytes summary
-# HELP telemetry_scrape_size_bytes Scrape size, not encoded
-# TYPE telemetry_scrape_encoded_size_bytes summary
-# HELP telemetry_scrape_encoded_size_bytes Scrape size, encoded
-# TYPE http_response_headers_size_bytes summary
 # HELP http_response_headers_size_bytes HTTP request response headers size
+# HELP http_response_send_microseconds HTTP request time spent sending reply
+# HELP http_response_size_bytes HTTP request total response size
+# HELP telemetry_scrape_duration_seconds Scrape duration
+# HELP telemetry_scrape_encoded_size_bytes Scrape size, encoded
+# HELP telemetry_scrape_size_bytes Scrape size, not encoded
+# TYPE elli_up gauge
+# TYPE http_bad_requests_total counter
+# TYPE http_client_closed_total counter
+# TYPE http_client_timeout_total counter
+# TYPE http_request_body_microseconds histogram
+# TYPE http_request_duration_microseconds histogram
+# TYPE http_request_headers_microseconds histogram
+# TYPE http_request_user_microseconds histogram
+# TYPE http_requests_failed_total counter
+# TYPE http_requests_total counter
+# TYPE http_response_body_size_bytes summary
+# TYPE http_response_headers_size_bytes summary
+# TYPE http_response_send_microseconds histogram
+# TYPE http_response_size_bytes summary
+# TYPE telemetry_scrape_duration_seconds summary
+# TYPE telemetry_scrape_encoded_size_bytes summary
+# TYPE telemetry_scrape_size_bytes summary
+elli_up 1").
 
-").
-
--define(EMPTY_SCRAPE_SIZE, 1876).
+-define(EMPTY_SCRAPE_SIZE, 1934).
 
 normalize_text_scrape(Scrape) ->
   lists:sort(lists:map(fun string:strip/1, string:tokens(Scrape, "\n"))).
