@@ -1,8 +1,8 @@
 %% @doc elli_prometheus config helpers.
 %% @author Ilya Khaprov
-%% @version 0.1.1
+%% @version 0.2.0
 %% @see elli_prometheus
-%% @copyright 2016 elli-lib team
+%% @copyright 2016-2020 elli-lib team
 -module(elli_prometheus_config).
 -author("Ilya Khaprov").
 
